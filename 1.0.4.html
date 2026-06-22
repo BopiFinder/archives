@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BopiFinder!</title>
+    <link rel="icon" type="image/png" href="https://cdn.bopimo.com/static/images/favicon.png">
+
+    <style>
+        :root {
+            --bg: #111;
+            --card: #1e1e1e;
+            --text: white;
+            --accent: #4da6ff;
+        }
+
+        [data-theme="light"] {
+            --bg: #f8f9fa;
+            --card: #ffffff;
+            --text: #222;
+            --accent: #0066cc;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            text-align: center;
+            padding: 20px 15px;
+            margin: 0;
+            min-height: 100vh;
+            transition: background 0.3s;
+        }
+
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        h1 { margin: 8px 0 4px; font-size: 2.4em; }
+
+        .toggle-btn {
+            background: none;
+            border: none;
+            font-size: 32px;
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        input {
+            padding: 14px 16px;
+            width: 100%;
+            max-width: 340px;
+            font-size: 17px;
+            border: none;
+            border-radius: 12px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            padding: 14px 24px;
+            font-size: 17px;
+            cursor: pointer;
+            border: none;
+            border-radius: 12px;
+            background: #4da6ff;
+            color: white;
+            width: 100%;
+            max-width: 340px;
+        }
+
+        .card {
+            margin: 25px auto;
+            background: var(--card);
+            padding: 24px;
+            border-radius: 20px;
+            max-width: 360px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+        }
+
+        img {
+            border-radius: 50%;
+            border: 6px solid #4da6ff;
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        .result-name {
+            font-size: 1.75em;
+            margin: 14px 0 6px;
+            font-weight: bold;
+        }
+
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+        #splash { font-style: italic; margin: 12px 0 18px; min-height: 1.4em; }
+
+        #history {
+            margin: 20px auto;
+            max-width: 360px;
+            text-align: left;
+        }
+
+        .history-item {
+            position: relative;
+            padding: 14px 16px;
+            background: #2a2a2a;
+            margin: 8px 0;
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover,
+        .history-item:active {
+            background: #4da6ff;
+            color: white;
+        }
+
+        .delete-btn {
+            background: #ff4d6b;
+            color: white;
+            border: none;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 18px;
+            line-height: 26px;
+            text-align: center;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+
+        #result { min-height: 260px; }
+
+        @media (max-width: 480px) {
+            .card { padding: 22px; }
+            h1 { font-size: 2.3em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>BopiFinder</h1>
+        <button class="toggle-btn" id="theme-toggle" title="Toggle theme">🌙</button>
+    </div>
+
+    <p>Find Bopi's through UserID, Username, or Profile URL!</p>
+    <p id="splash"></p>
+
+    <input type="text" id="textbox" placeholder="Enter Username, ID, or Profile URL">
+    <button id="search">Search</button>
+
+    <div id="history"></div>
+    <div id="result"></div>
+
+    <br><br>
+    <div style="font-size: 0.9em; opacity: 0.9;">
+        Website by <a href="https://www.bopimo.com/users/GeoMzn">GeoMzn</a> • 
+        Bopimo! by Isaiah, Leon, and FireCat.<br>
+        <a href="/changelog">Changelog</a> • <a href="/archives">Archives</a>
+    </div>
+
+    <div id="bpflink" style="display:none;"></div>
+
+    <script>
+        const version = "1.0.9";
+        const resultDiv = document.getElementById("result");
+        const splashEl = document.getElementById("splash");
+        const linkEl = document.getElementById("bpflink");
+        const textbox = document.getElementById("textbox");
+        const historyDiv = document.getElementById("history");
+
+        let searchHistory = JSON.parse(localStorage.getItem("bopifinder_history") || "[]");
+        let pressTimer;
+
+        const splashes = [
+            `omg its bopifinder v${version}!`,
+            "look its a bird",
+            "'create on midnight ONLY' 😭🙏🥀",
+            "BopiFinder by GeoMzn • Bopimo! by Isaiah, FireCat, and Leon",
+            "random thing"
+        ];
+
+        function extractUsernameFromUrl(input) {
+            try {
+                let url;
+                if (input.includes("://")) url = new URL(input);
+                else if (input.startsWith("/")) url = new URL("https://bopimo.com" + input);
+                else return null;
+
+                const match = url.pathname.match(/\/(?:user|users)\/([^\/]+)/i);
+                return match ? decodeURIComponent(match[1]).trim() : null;
+            } catch (e) { return null; }
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute("data-theme", theme);
+            localStorage.setItem("theme", theme);
+            document.getElementById("theme-toggle").textContent = theme === "light" ? "☀️" : "🌙";
+        }
+
+        setTheme(localStorage.getItem("theme") || "dark");
+
+        document.getElementById("theme-toggle").addEventListener("click", () => {
+            const current = document.documentElement.getAttribute("data-theme");
+            setTheme(current === "light" ? "dark" : "light");
+        });
+
+        function saveToHistory(username, id) {
+            const entry = { username, id, timestamp: Date.now() };
+            searchHistory = searchHistory.filter(h => h.id !== id);
+            searchHistory.unshift(entry);
+            searchHistory = searchHistory.slice(0, 8);
+            localStorage.setItem("bopifinder_history", JSON.stringify(searchHistory));
+            renderHistory();
+        }
+
+        function deleteHistoryItem(id) {
+            searchHistory = searchHistory.filter(h => h.id !== id);
+            localStorage.setItem("bopifinder_history", JSON.stringify(searchHistory));
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (searchHistory.length === 0) return historyDiv.innerHTML = "";
+            
+            let html = `<strong>Recent Searches:</strong><br>`;
+            searchHistory.forEach(item => {
+                html += `
+                    <div class="history-item" data-id="${item.id}">
+                        <span>${item.username} <small>(ID: ${item.id})</small></span>
+                        <button class="delete-btn" onclick="deleteHistoryItem(${item.id}); event.stopImmediatePropagation();">×</button>
+                    </div>`;
+            });
+            historyDiv.innerHTML = html;
+
+            document.querySelectorAll(".history-item").forEach(el => {
+                const id = el.dataset.id;
+
+                el.addEventListener("click", (e) => {
+                    if (e.target.classList.contains("delete-btn")) return;
+                    textbox.value = id;
+                    document.getElementById("search").click();
+                });
+
+                // Long press delete
+                el.addEventListener("mousedown", () => pressTimer = setTimeout(() => deleteHistoryItem(id), 650));
+                el.addEventListener("mouseup", () => clearTimeout(pressTimer));
+                el.addEventListener("mouseleave", () => clearTimeout(pressTimer));
+                el.addEventListener("touchstart", () => pressTimer = setTimeout(() => deleteHistoryItem(id), 650));
+                el.addEventListener("touchend", () => clearTimeout(pressTimer));
+            });
+        }
+
+        async function setRandomSplash() {
+            const idx = Math.floor(Math.random() * splashes.length);
+            if (idx === 4) {
+                try {
+                    const id = Math.floor(Math.random() * 25000) + 1;
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(`https://www.bopimo.com/api/user/${id}`));
+                    if (res.ok) {
+                        const u = await res.json();
+                        if (u?.username) {
+                            splashEl.textContent = `Who's ${u.username}? Let's find out!`;
+                            return;
+                        }
+                    }
+                } catch {}
+            }
+            splashEl.textContent = splashes[idx];
+        }
+
+        window.copyBopifinderLink = function() {
+            const btn = event.target;
+            navigator.clipboard.writeText(linkEl.textContent).then(() => {
+                const orig = btn.textContent;
+                btn.textContent = "Copied!";
+                setTimeout(() => btn.textContent = orig, 1600);
+            });
+        };
+
+        document.getElementById("search").addEventListener("click", async () => {
+            let input = textbox.value.trim();
+            if (!input) return;
+
+            resultDiv.innerHTML = "<p>Loading...</p>";
+
+            try {
+                const extracted = extractUsernameFromUrl(input);
+                if (extracted) input = extracted;
+
+                let user;
+                if (/^\d+$/.test(input)) {
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(`https://www.bopimo.com/api/user/${input}`));
+                    user = await res.json();
+                } else {
+                    const res = await fetch("https://corsproxy.io/?" + encodeURIComponent(`https://www.bopimo.com/api/users?search=${encodeURIComponent(input)}`));
+                    const json = await res.json();
+                    if (!json?.data?.length) return resultDiv.innerHTML = "<h2>User not found.</h2>";
+                    user = json.data[0];
+                }
+
+                let displayName = user.username;
+                if (displayName === "BopiFinder") displayName = "Bopifinder (OFFICIAL)";
+                if (displayName === "GeoMzn") displayName = "GeoMzn (BOPIFINDER CREATOR)";
+
+                linkEl.textContent = `https://bopifinder.github.io/?user=${user.id}`;
+                saveToHistory(displayName, user.id);
+
+                resultDiv.innerHTML = `
+                    <div class="card">
+                        <img src="${user.bopi.headshot_url}" alt="${displayName}">
+                        <div class="result-name">${displayName}</div>
+                        <p><b>ID:</b> ${user.id}</p>
+                        <p><b>Level:</b> ${user.level}</p>
+                        <p><b>XP:</b> ${user.xp}</p>
+                        <p><b>Status:</b> ${user.online ? "🟢 Online" : "🔴 Offline"}</p>
+                        <p><a href="${user.url}" target="_blank">View Profile</a></p>
+                        <p><a href="${user.bopi.bopi_url}" target="_blank">View Bopi</a></p>
+                        <br>
+                        <button onclick="copyBopifinderLink()">Copy BopiFinder! Link</button>
+                    </div>
+                `;
+            } catch (err) {
+                resultDiv.innerHTML = "<h2>Failed to fetch user. Try again.</h2>";
+                console.error(err);
+            }
+        });
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("user")) {
+            textbox.value = params.get("user");
+            document.getElementById("search").click();
+        }
+
+        setRandomSplash();
+        renderHistory();
+    </script>
+</body>
+</html>
